@@ -2,8 +2,10 @@
 import json
 import logging
 import os
+import platform
 import secrets
 import subprocess
+import sys
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -85,6 +87,22 @@ class PodmanEngine(ContainerEngine):
     def name(self) -> str:
         """Get the name of the container engine."""
         return "podman"
+
+    def build(self, context_dir: StrPath = ".", flags: list[str] | None = None) -> tuple[str, int]:
+        """Build container image, optionally targeting a specific platform."""
+        if flags is None:
+            flags = []
+
+        # Allow forcing build platform via environment variable (e.g., on Apple Silicon)
+        build_platform = os.getenv("PODMAN_DEFAULT_PLATFORM")
+        # Default to x86_64 on Apple Silicon to match CI's x86_64 environment
+        if not build_platform and sys.platform == "darwin" and platform.machine() == "arm64":
+            build_platform = "linux/amd64"
+
+        if build_platform and "--platform" not in flags:
+            flags = ["--platform", build_platform, *flags]
+
+        return super().build(context_dir, flags)
 
     def run(
         self,
